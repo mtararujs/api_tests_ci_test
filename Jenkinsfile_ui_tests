@@ -1,0 +1,19 @@
+pipeline {
+    parameters {
+        string(name: 'ENVIRONMENT' , defaultValue: 'dev', description: 'Test environment')
+    }
+    agent any 
+    stages {
+        stage("ui-tests") {
+            steps {
+                echo "Running UI tests"
+                script {
+                    def browsers = ["chrome", "firefox"]
+                    for (int i = 0; i < browsers.size(); ++i) {
+                        echo "Testing the app on ${browsers[i]} browser or ${params.ENVIRONMENT}"
+                    }
+                }
+            }
+        }
+    }
+}

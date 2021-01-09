@@ -1,0 +1,116 @@
+pipeline {
+    agent any
+    triggers {
+        pollSCM('*/1 * * * *')
+    }  
+    stages {
+        stage("build") {
+            steps {
+                echo "java app build"
+                sh "sleep 2"
+            }
+        }
+        stage("deploy-dev") {
+            steps {
+                script{
+                    deploy("dev")
+                }
+            }
+        }
+        stage("test-dev") {
+            steps {
+                script{
+                    test("dev")
+                }  
+            }
+        }
+        stage("deploy-int") {
+            steps {
+                script{
+                    deploy("int")
+                }
+            }
+        }
+        stage("test-int") {
+            steps {
+                test("int")
+            }
+        }
+        stage("deploy-prd") {
+            steps {
+                script{
+                    deploy("prd")
+                }
+            }
+        }
+        stage("test-prd") {
+            steps {
+                test("int")
+            }
+        }
+    }
+    post { 
+        always { 
+            echo "This is always executing"
+        }
+        cleanup {
+            echo "This is cleanup"
+        }
+        success {
+            echo "Send successfull notificaton"
+        }
+        failure {
+            echo "Send notification in failure"
+        }
+    }
+}
+
+def deploy(String environment) {
+    echo "Deployment to ${environment}"
+    build job: "test-ui", parameters: [string(name: 'ENVIRONMENT', value: "${environment}")]
+}
+
+def test(String environment){
+    echo "Tests on ${environment}"
+    try {
+        sh "docker run --network=host -t -d --name api_test_executor_${environment} api_test_executor:latest"
+        sh "docker exec api_test_executor_${environment} cucumber --tags=@${environment} --format progress -c --format html --out test-output/report.html"
+    }
+    finally {
+        sh "docker cp api_test_executor_${environment}:/usr/src/api-tests/test-output/report.html report_${environment}.html"
+        sh "docker stop api_test_executor_${environment}"
+        sh "docker rm api_test_executor_${environment}"
+        publishHTML ([
+            allowMissing: false,
+            alwaysLinkToLastBuild: false,
+            keepAll: true,
+            reportDir: "",
+            reportFiles: "report_${environment}.html",
+            reportName: "Test Report ${environment}",
+            reportTitles: ""
+        ])
+    }    
+}
+
+// def test(String environment) {
+//    try {
+//       echo environment
+//       sh "docker run --network=host -t -d --name api_test_executor_${environment} api_test_executor:latest"
+//       sh "docker exec api_test_executor_${environment} ls"
+//       sh "docker exec api_test_executor_${environment} cucumber --tags=@${environment} --format progress -c --format html --out test-output/report.html"
+//    }
+//    finally {
+//       sh "docker cp api_test_executor_${environment}:/usr/src/api-tests/test-output/report.html report_${environment}.html"
+//       sh "docker stop api_test_executor_${environment}"
+//       sh "docker rm api_test_executor_${environment}"
+//       publishHTML ([
+//       allowMissing: false,
+//       alwaysLinkToLastBuild: false,
+//       keepAll: true,
+//       reportDir: "",
+//       reportFiles: "report_${environment}.html",
+//       reportName: "Test Report ${environment}",
+//       reportTitles: ""
+//       ])
+//    }
+// }
